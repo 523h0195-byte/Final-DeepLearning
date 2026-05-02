@@ -67,7 +67,7 @@ def load_vocab_from_hf(filename):
     with open(vocab_path, "rb") as f:
         return pickle.load(f)
 @st.cache_resource
-def load_model_a(model_type, q_vocab, a_vocab):
+def load_model_a(model_type, _q_vocab, _a_vocab):
     from vi_vqa_animal_a_b_model import VQAModelA, PAD
     repo_id = "dquovinh9029/vi-vqa-model"
     if model_type == "A1 (LSTM)":
@@ -77,8 +77,8 @@ def load_model_a(model_type, q_vocab, a_vocab):
         ckpt_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_a2.pth", token=HF_TOKEN)
         decoder_type = "transformer"
     model = VQAModelA(
-        q_vocab_size=len(q_vocab.itos),
-        a_vocab_size=len(a_vocab.itos),
+        q_vocab_size=len(_q_vocab.itos),
+        a_vocab_size=len(_a_vocab.itos),
         image_backbone="resnet50",
         fusion_type="coattention",
         decoder_type=decoder_type,
