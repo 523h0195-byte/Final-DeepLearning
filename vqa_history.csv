@@ -1,0 +1,7 @@
+model,question,answer
+B2 (BLIP fine-tuned),What is the animal in the image?,zebra
+B2 (BLIP fine-tuned),What action the animal does?,walk
+B1 (BLIP zero-shot),Tên Tiếng Việt của con vật này ,4
+B1 (BLIP zero-shot),Khung cảnh ở đó như thế nào?,zebra
+B1 (BLIP zero-shot),What is the animal?,eagle
+B1 (BLIP zero-shot),What action the animal does?,flying
