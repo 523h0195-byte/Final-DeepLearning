@@ -105,10 +105,20 @@ def load_blip(model_type):
             model_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_b2.pth", token=HF_TOKEN)
             model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
             model.eval()  # Set to eval mode BEFORE loading weights
-            state_dict = torch.load(model_path, map_location=DEVICE)
+            state_dict = torch.load(model_path, map_location="cpu")
             model.load_state_dict(state_dict)
             # Clear unnecessary cache to save memory
             del state_dict
+            # Apply dynamic quantization for B2 only, reducing RAM usage on Streamlit Cloud
+            if DEVICE.type == "cpu":
+                try:
+                    model = torch.quantization.quantize_dynamic(
+                        model,
+                        {torch.nn.Linear},
+                        dtype=torch.qint8,
+                    )
+                except Exception as quant_err:
+                    st.warning("⚠ Không thể lượng tử hoá B2 tự động, sẽ dùng model gốc thay thế.")
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             model.to(DEVICE)
