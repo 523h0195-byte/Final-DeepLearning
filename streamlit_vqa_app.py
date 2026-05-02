@@ -10,9 +10,15 @@ import sys
 import pickle
 from pathlib import Path
 
-# Đăng nhập Hugging Face bằng token từ Streamlit secrets (nếu có)
-if "HF_TOKEN" in st.secrets:
-    login(token=st.secrets["HF_TOKEN"])
+# Đăng nhập Hugging Face bằng token từ Streamlit secrets hoặc biến môi trường
+try:
+    HF_TOKEN = st.secrets.get("HF_TOKEN", None)
+except Exception:
+    HF_TOKEN = None
+if not HF_TOKEN:
+    HF_TOKEN = os.environ.get("HF_TOKEN", None)
+if HF_TOKEN:
+    login(token=HF_TOKEN)
 
 import random
 
@@ -54,8 +60,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # ==== LOADERS ====
 def load_vocab_from_hf(filename):
-    repo_id = "dquocvinh9029/vi-vqa-model"
-    vocab_path = hf_hub_download(repo_id=repo_id, filename=filename)
+    repo_id = "dquovinh9029/vi-vqa-model"
+    vocab_path = hf_hub_download(repo_id=repo_id, filename=filename, token=HF_TOKEN)
     import __main__
     __main__.Vocab = Vocab
     with open(vocab_path, "rb") as f:
@@ -63,12 +69,12 @@ def load_vocab_from_hf(filename):
 @st.cache_resource
 def load_model_a(model_type, q_vocab, a_vocab):
     from vi_vqa_animal_a_b_model import VQAModelA, PAD
-    repo_id = "dquocvinh9029/vi-vqa-model"
+    repo_id = "dquovinh9029/vi-vqa-model"
     if model_type == "A1 (LSTM)":
-        ckpt_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_a1.pth")
+        ckpt_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_a1.pth", token=HF_TOKEN)
         decoder_type = "lstm"
     else:
-        ckpt_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_a2.pth")
+        ckpt_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_a2.pth", token=HF_TOKEN)
         decoder_type = "transformer"
     model = VQAModelA(
         q_vocab_size=len(q_vocab.itos),
@@ -85,15 +91,15 @@ def load_model_a(model_type, q_vocab, a_vocab):
 @st.cache_resource
 def load_blip(model_type):
     from transformers import BlipProcessor, BlipForQuestionAnswering
-    repo_id = "dquocvinh9029/vi-vqa-model"
+    repo_id = "dquovinh9029/vi-vqa-model"
     if model_type == "B1 (BLIP zero-shot)":
         proc = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
         model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base").to(DEVICE)
     elif model_type == "B2 (BLIP fine-tuned)":
         # Load processor from custom repo using subfolder
-        proc = BlipProcessor.from_pretrained(repo_id, subfolder="kaggle_output/models/blip_processor")
+        proc = BlipProcessor.from_pretrained(repo_id, subfolder="kaggle_output/models/blip_processor", token=HF_TOKEN)
         # Load model weights from HF repo
-        model_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_b2.pth")
+        model_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_b2.pth", token=HF_TOKEN)
         model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
         model.load_state_dict(torch.load(model_path, map_location=DEVICE))
         model.to(DEVICE)
@@ -149,7 +155,7 @@ if "vqa_history" not in st.session_state:
 
 if img_file:
     img = resolve_image(img_file)
-    st.image(img, caption="Ảnh đã upload", use_column_width=True)
+    st.image(img, caption="Ảnh đã upload", width="stretch")
 
 
 # ==== PATTERN GENERATION ====
@@ -289,7 +295,7 @@ if st.button("Trả lời", type="primary"):
 if st.session_state.vqa_history:
     st.markdown("### 📋 Lịch sử hỏi đáp (có thể tải về)")
     df_hist = pd.DataFrame(st.session_state.vqa_history)
-    st.dataframe(df_hist, use_container_width=True)
+    st.dataframe(df_hist, width="stretch")
     csv = df_hist.to_csv(index=False).encode('utf-8')
     st.download_button("Tải file CSV lịch sử", data=csv, file_name="vqa_history.csv", mime="text/csv")
 
