@@ -49,6 +49,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # ==== LOADERS ====
 def load_vocab(path):
+    import __main__
+    __main__.Vocab = Vocab
     with open(path, "rb") as f:
         return pickle.load(f)
 
