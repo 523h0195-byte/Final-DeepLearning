@@ -1,13 +1,18 @@
 import streamlit as st
 import random
 import torch
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, login
 from PIL import Image
 import numpy as np
+
 import os
 import sys
 import pickle
 from pathlib import Path
+
+# Đăng nhập Hugging Face bằng token từ Streamlit secrets (nếu có)
+if "HF_TOKEN" in st.secrets:
+    login(token=st.secrets["HF_TOKEN"])
 
 import random
 
