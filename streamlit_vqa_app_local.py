@@ -1,7 +1,6 @@
 import streamlit as st
 import random
 import torch
-from huggingface_hub import hf_hub_download, login
 from PIL import Image
 import numpy as np
 
@@ -9,18 +8,6 @@ import os
 import sys
 import pickle
 from pathlib import Path
-
-# Đăng nhập Hugging Face bằng token từ Streamlit secrets hoặc biến môi trường
-try:
-    HF_TOKEN = st.secrets.get("HF_TOKEN", None)
-except Exception:
-    HF_TOKEN = None
-if not HF_TOKEN:
-    HF_TOKEN = os.environ.get("HF_TOKEN", None)
-if HF_TOKEN:
-    login(token=HF_TOKEN)
-
-import random
 
 # Define the Vocab class that was used to create the pickle files.
 # This is necessary for pickle to be able to load the vocab objects.
@@ -50,7 +37,7 @@ class Vocab:
         tokens = [self.itos[i] for i in ids if self.itos[i] not in ["<bos>", "<pad>"]]
         return " ".join(tokens).split("<eos>")[0].strip()
 
-# ==== CONFIG ====
+# ==== CONFIG (LOCAL PATHS) ====
 KAGGLE_OUTPUT = Path(__file__).parent / "kaggle_output"
 MODELS_DIR = KAGGLE_OUTPUT / "models"
 BLIP_PROC_DIR = MODELS_DIR / "blip_processor"
@@ -58,23 +45,22 @@ VOCAB_Q_PATH = KAGGLE_OUTPUT / "q_vocab.pkl"
 VOCAB_A_PATH = KAGGLE_OUTPUT / "a_vocab.pkl"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# ==== LOADERS ====
-def load_vocab_from_hf(filename):
-    repo_id = "dquovinh9029/vi-vqa-model"
-    vocab_path = hf_hub_download(repo_id=repo_id, filename=filename, token=HF_TOKEN)
+# ==== LOADERS (LOCAL) ====
+def load_vocab_local(vocab_path):
+    """Load vocab từ file pickle local."""
     import __main__
     __main__.Vocab = Vocab
     with open(vocab_path, "rb") as f:
         return pickle.load(f)
+
 @st.cache_resource
 def load_model_a(model_type, _q_vocab, _a_vocab):
     from vi_vqa_animal_a_b_model import VQAModelA, PAD
-    repo_id = "dquovinh9029/vi-vqa-model"
     if model_type == "A1 (LSTM)":
-        ckpt_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_a1.pth", token=HF_TOKEN)
+        ckpt_path = MODELS_DIR / "best_a1.pth"
         decoder_type = "lstm"
     else:
-        ckpt_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_a2.pth", token=HF_TOKEN)
+        ckpt_path = MODELS_DIR / "best_a2.pth"
         decoder_type = "transformer"
     model = VQAModelA(
         q_vocab_size=len(_q_vocab.itos),
@@ -91,44 +77,29 @@ def load_model_a(model_type, _q_vocab, _a_vocab):
 @st.cache_resource
 def load_blip(model_type):
     from transformers import BlipProcessor, BlipForQuestionAnswering
-    repo_id = "dquovinh9029/vi-vqa-model"
-    try:
-        if model_type == "B1 (BLIP zero-shot)":
-            proc = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
-            model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
-            model.eval()
-            model.to(DEVICE)
-        elif model_type == "B2 (BLIP fine-tuned)":
-            # Load processor from custom repo using subfolder
-            proc = BlipProcessor.from_pretrained(repo_id, subfolder="kaggle_output/models/blip_processor", token=HF_TOKEN)
-            # Load model weights from HF repo
-            model_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_b2.pth", token=HF_TOKEN)
-            model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
-            model.eval()  # Set to eval mode BEFORE loading weights
-            state_dict = torch.load(model_path, map_location=DEVICE)
-            model.load_state_dict(state_dict)
-            # Clear unnecessary cache to save memory
-            del state_dict
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            model.to(DEVICE)
-        else:
-            raise ValueError(f"Unknown BLIP model type: {model_type}")
-        return proc, model
-    except RuntimeError as e:
-        if "out of memory" in str(e).lower():
-            st.error("❌ Lỗi: Không đủ bộ nhớ để load model B2 trên Streamlit Cloud. Hãy thử model A1/A2 hoặc B1 thay vào.")
-        else:
-            st.error(f"❌ Lỗi khi load model: {str(e)}")
-        raise
+    if model_type == "B1 (BLIP zero-shot)":
+        proc = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
+        model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base").to(DEVICE)
+    elif model_type == "B2 (BLIP fine-tuned)":
+        # Load processor từ thư mục local
+        proc = BlipProcessor.from_pretrained(str(BLIP_PROC_DIR))
+        # Load model weights từ file local
+        model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
+        model.load_state_dict(torch.load(MODELS_DIR / "best_b2.pth", map_location=DEVICE))
+        model.to(DEVICE)
+    else:
+        raise ValueError(f"Unknown BLIP model type: {model_type}")
+    model.eval()
+    return proc, model
 
 def resolve_image(img_file):
     img = Image.open(img_file).convert("RGB")
     return img
 
 # ==== STREAMLIT UI ====
-st.set_page_config(page_title="Vi-VQA Animal Demo", page_icon="🦉", layout="centered", initial_sidebar_state="auto")
+st.set_page_config(page_title="Vi-VQA Animal Demo (Local)", page_icon="🦉", layout="centered", initial_sidebar_state="auto")
 st.title("🐾 Vi-VQA Animal Visual Question Answering")
+st.caption("🖥️ Chế độ Local — Load model từ thư mục kaggle_output/")
 st.markdown("""
 <style>
     .stApp {background: linear-gradient(120deg, #f8fafc 0%, #e0e7ef 100%);}
@@ -150,6 +121,11 @@ st.sidebar.markdown("""
 - **B2**: BLIP fine-tuned (custom)
 """)
 
+# Hiển thị thông tin đường dẫn local
+st.sidebar.markdown("---")
+st.sidebar.markdown(f"📂 **Model dir**: `{MODELS_DIR}`")
+st.sidebar.markdown(f"🔧 **Device**: `{DEVICE}`")
+
 st.markdown("### 1. Upload ảnh 🖼️")
 img_file = st.file_uploader("Chọn ảnh động vật", type=["jpg", "jpeg", "png"])
 
@@ -169,7 +145,7 @@ if "vqa_history" not in st.session_state:
 
 if img_file:
     img = resolve_image(img_file)
-    st.image(img, caption="Ảnh đã upload", width="stretch")
+    st.image(img, caption="Ảnh đã upload", use_container_width=True)
 
 
 # ==== PATTERN GENERATION ====
@@ -269,37 +245,30 @@ if st.button("Trả lời", type="primary"):
         st.stop()
     img = resolve_image(img_file)
     with st.spinner("Đang sinh câu trả lời..."):
-        try:
-            if model_choice in ["A1 (LSTM)", "A2 (Transformer)"]:
-                q_vocab = load_vocab_from_hf("kaggle_output/q_vocab.pkl")
-                a_vocab = load_vocab_from_hf("kaggle_output/a_vocab.pkl")
-                model = load_model_a(model_choice, q_vocab, a_vocab)
-                from torchvision import transforms
-                tfms = transforms.Compose([
-                    transforms.Resize((224, 224)),
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                ])
-                img_tensor = tfms(img).unsqueeze(0).to(DEVICE)
-                q_ids = torch.tensor([q_vocab.encode(question)], dtype=torch.long).to(DEVICE)
-                q_lens = torch.tensor([len(q_vocab.encode(question))], dtype=torch.long).to(DEVICE)
-                with torch.no_grad():
-                    gen_ids = model.generate(img_tensor, q_ids, q_lens, a_vocab.stoi["<bos>"], a_vocab.stoi["<eos>"], max_len=12)
-                    answer = a_vocab.decode(gen_ids[0].tolist())
-            elif model_choice in ["B1 (BLIP zero-shot)", "B2 (BLIP fine-tuned)"]:
-                proc, model_blip = load_blip(model_choice)
-                inp = proc(images=img, text=question, return_tensors="pt").to(DEVICE)
-                with torch.no_grad():
-                    out = model_blip.generate(**inp, max_new_tokens=20)
-                answer = proc.decode(out[0], skip_special_tokens=True)
-            else:
-                st.error(f"Không nhận diện được lựa chọn mô hình: {model_choice}")
-                st.stop()
-        except RuntimeError as e:
-            if "out of memory" in str(e).lower():
-                st.error("❌ Lỗi: Không đủ bộ nhớ! Streamlit Cloud có giới hạn RAM. Hãy thử model khác hoặc deploy cục bộ.")
-            else:
-                st.error(f"❌ Lỗi xử lý: {str(e)}")
+        if model_choice in ["A1 (LSTM)", "A2 (Transformer)"]:
+            q_vocab = load_vocab_local(VOCAB_Q_PATH)
+            a_vocab = load_vocab_local(VOCAB_A_PATH)
+            model = load_model_a(model_choice, q_vocab, a_vocab)
+            from torchvision import transforms
+            tfms = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ])
+            img_tensor = tfms(img).unsqueeze(0).to(DEVICE)
+            q_ids = torch.tensor([q_vocab.encode(question)], dtype=torch.long).to(DEVICE)
+            q_lens = torch.tensor([len(q_vocab.encode(question))], dtype=torch.long).to(DEVICE)
+            with torch.no_grad():
+                gen_ids = model.generate(img_tensor, q_ids, q_lens, a_vocab.stoi["<bos>"], a_vocab.stoi["<eos>"], max_len=12)
+                answer = a_vocab.decode(gen_ids[0].tolist())
+        elif model_choice in ["B1 (BLIP zero-shot)", "B2 (BLIP fine-tuned)"]:
+            proc, model_blip = load_blip(model_choice)
+            inp = proc(images=img, text=question, return_tensors="pt").to(DEVICE)
+            with torch.no_grad():
+                out = model_blip.generate(**inp, max_new_tokens=20)
+            answer = proc.decode(out[0], skip_special_tokens=True)
+        else:
+            st.error(f"Không nhận diện được lựa chọn mô hình: {model_choice}")
             st.stop()
     answer_sentence = wrap_answer(answer, model_choice, question)
     st.markdown(f"<div class='answer-box'><span class='big-font'>Đáp án: <b>{answer_sentence}</b></span></div>", unsafe_allow_html=True)
@@ -316,11 +285,11 @@ if st.button("Trả lời", type="primary"):
 if st.session_state.vqa_history:
     st.markdown("### 📋 Lịch sử hỏi đáp (có thể tải về)")
     df_hist = pd.DataFrame(st.session_state.vqa_history)
-    st.dataframe(df_hist, width="stretch")
+    st.dataframe(df_hist, use_container_width=True)
     csv = df_hist.to_csv(index=False).encode('utf-8')
     st.download_button("Tải file CSV lịch sử", data=csv, file_name="vqa_history.csv", mime="text/csv")
 
 st.markdown("""
 ---
-<sub>Vi-VQA Animal Demo | Đồ án Deep Learning 2026</sub>
+<sub>Vi-VQA Animal Demo (Local) | Đồ án Deep Learning 2026</sub>
 """)
