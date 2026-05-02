@@ -48,12 +48,13 @@ VOCAB_A_PATH = KAGGLE_OUTPUT / "a_vocab.pkl"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # ==== LOADERS ====
-def load_vocab(path):
+def load_vocab_from_hf(filename):
+    repo_id = "dquocvinh9029/vi-vqa-model"
+    vocab_path = hf_hub_download(repo_id=repo_id, filename=filename)
     import __main__
     __main__.Vocab = Vocab
-    with open(path, "rb") as f:
+    with open(vocab_path, "rb") as f:
         return pickle.load(f)
-
 @st.cache_resource
 def load_model_a(model_type, q_vocab, a_vocab):
     from vi_vqa_animal_a_b_model import VQAModelA, PAD
@@ -244,8 +245,8 @@ if st.button("Trả lời", type="primary"):
     img = resolve_image(img_file)
     with st.spinner("Đang sinh câu trả lời..."):
         if model_choice in ["A1 (LSTM)", "A2 (Transformer)"]:
-            q_vocab = load_vocab(VOCAB_Q_PATH)
-            a_vocab = load_vocab(VOCAB_A_PATH)
+            q_vocab = load_vocab_from_hf("q_vocab.pkl")
+            a_vocab = load_vocab_from_hf("a_vocab.pkl")
             model = load_model_a(model_choice, q_vocab, a_vocab)
             from torchvision import transforms
             tfms = transforms.Compose([
