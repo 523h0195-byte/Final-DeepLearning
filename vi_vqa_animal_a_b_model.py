@@ -183,6 +183,7 @@ class VQAModelA(nn.Module):
         else:
             raise ValueError("decoder_type phải là lstm / transformer")
         self.decoder_type = decoder_type
+    # Model không phụ thuộc vào file ckpt local, việc load state_dict đã được chuyển sang streamlit_vqa_app.py
     def forward(self, images, q_ids, q_lens, a_inp):
         img_feat = self.image_encoder(images)
         txt_feat = self.text_encoder(q_ids, q_lens)

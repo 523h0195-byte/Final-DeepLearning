@@ -5,3 +5,4 @@ torchvision
 transformers
 Pillow
 numpy
+huggingface_hub

@@ -1,6 +1,7 @@
 import streamlit as st
 import random
 import torch
+from huggingface_hub import hf_hub_download
 from PIL import Image
 import numpy as np
 import os
@@ -51,13 +52,15 @@ def load_vocab(path):
     with open(path, "rb") as f:
         return pickle.load(f)
 
+@st.cache_resource
 def load_model_a(model_type, q_vocab, a_vocab):
     from vi_vqa_animal_a_b_model import VQAModelA, PAD
+    repo_id = "dquocvinh9029/vi-vqa-model"
     if model_type == "A1 (LSTM)":
-        ckpt = MODELS_DIR / "best_a1.pth"
+        ckpt_path = hf_hub_download(repo_id=repo_id, filename="best_a1.pth")
         decoder_type = "lstm"
     else:
-        ckpt = MODELS_DIR / "best_a2.pth"
+        ckpt_path = hf_hub_download(repo_id=repo_id, filename="best_a2.pth")
         decoder_type = "transformer"
     model = VQAModelA(
         q_vocab_size=len(q_vocab.itos),
@@ -67,21 +70,24 @@ def load_model_a(model_type, q_vocab, a_vocab):
         decoder_type=decoder_type,
         feat_dim=512,
     )
-    model.load_state_dict(torch.load(ckpt, map_location=DEVICE))
+    model.load_state_dict(torch.load(ckpt_path, map_location=DEVICE))
     model.to(DEVICE).eval()
     return model
 
+@st.cache_resource
 def load_blip(model_type):
     from transformers import BlipProcessor, BlipForQuestionAnswering
+    repo_id = "dquocvinh9029/vi-vqa-model"
     if model_type == "B1 (BLIP zero-shot)":
-        # Use the official pretrained BLIP processor and model
         proc = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
         model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base").to(DEVICE)
     elif model_type == "B2 (BLIP fine-tuned)":
-        # Use the local fine-tuned processor and weights
-        proc = BlipProcessor.from_pretrained(str(BLIP_PROC_DIR))
+        # Download processor config from HF repo if needed
+        proc = BlipProcessor.from_pretrained(hf_hub_download(repo_id=repo_id, filename="blip_processor/processor_config.json", cache_dir=None, local_dir=None, force_download=False, resume_download=True, local_files_only=False, repo_type=None, revision=None, subfolder="blip_processor"))
+        # Download model weights from HF repo
+        model_path = hf_hub_download(repo_id=repo_id, filename="best_b2.pth")
         model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
-        model.load_state_dict(torch.load(MODELS_DIR / "best_b2.pth", map_location=DEVICE))
+        model.load_state_dict(torch.load(model_path, map_location=DEVICE))
         model.to(DEVICE)
     else:
         raise ValueError(f"Unknown BLIP model type: {model_type}")
