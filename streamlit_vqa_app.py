@@ -90,10 +90,9 @@ def load_blip(model_type):
         proc = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
         model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base").to(DEVICE)
     elif model_type == "B2 (BLIP fine-tuned)":
-        # Download processor from HF repo
-        proc_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/blip_processor/processor_config.json")
-        proc = BlipProcessor.from_pretrained(proc_path)
-        # Download model weights from HF repo
+        # Load processor from custom repo using subfolder
+        proc = BlipProcessor.from_pretrained(repo_id, subfolder="kaggle_output/models/blip_processor")
+        # Load model weights from HF repo
         model_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_b2.pth")
         model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
         model.load_state_dict(torch.load(model_path, map_location=DEVICE))
