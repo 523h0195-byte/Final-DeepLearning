@@ -65,10 +65,10 @@ def load_model_a(model_type, q_vocab, a_vocab):
     from vi_vqa_animal_a_b_model import VQAModelA, PAD
     repo_id = "dquocvinh9029/vi-vqa-model"
     if model_type == "A1 (LSTM)":
-        ckpt_path = hf_hub_download(repo_id=repo_id, filename="best_a1.pth")
+        ckpt_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_a1.pth")
         decoder_type = "lstm"
     else:
-        ckpt_path = hf_hub_download(repo_id=repo_id, filename="best_a2.pth")
+        ckpt_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_a2.pth")
         decoder_type = "transformer"
     model = VQAModelA(
         q_vocab_size=len(q_vocab.itos),
@@ -90,10 +90,11 @@ def load_blip(model_type):
         proc = BlipProcessor.from_pretrained("Salesforce/blip-vqa-base")
         model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base").to(DEVICE)
     elif model_type == "B2 (BLIP fine-tuned)":
-        # Download processor config from HF repo if needed
-        proc = BlipProcessor.from_pretrained(hf_hub_download(repo_id=repo_id, filename="blip_processor/processor_config.json", cache_dir=None, local_dir=None, force_download=False, resume_download=True, local_files_only=False, repo_type=None, revision=None, subfolder="blip_processor"))
+        # Download processor from HF repo
+        proc_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/blip_processor/processor_config.json")
+        proc = BlipProcessor.from_pretrained(proc_path)
         # Download model weights from HF repo
-        model_path = hf_hub_download(repo_id=repo_id, filename="best_b2.pth")
+        model_path = hf_hub_download(repo_id=repo_id, filename="kaggle_output/models/best_b2.pth")
         model = BlipForQuestionAnswering.from_pretrained("Salesforce/blip-vqa-base")
         model.load_state_dict(torch.load(model_path, map_location=DEVICE))
         model.to(DEVICE)
@@ -250,8 +251,8 @@ if st.button("Trả lời", type="primary"):
     img = resolve_image(img_file)
     with st.spinner("Đang sinh câu trả lời..."):
         if model_choice in ["A1 (LSTM)", "A2 (Transformer)"]:
-            q_vocab = load_vocab_from_hf("q_vocab.pkl")
-            a_vocab = load_vocab_from_hf("a_vocab.pkl")
+            q_vocab = load_vocab_from_hf("kaggle_output/q_vocab.pkl")
+            a_vocab = load_vocab_from_hf("kaggle_output/a_vocab.pkl")
             model = load_model_a(model_choice, q_vocab, a_vocab)
             from torchvision import transforms
             tfms = transforms.Compose([
