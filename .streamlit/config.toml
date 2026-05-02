@@ -2,6 +2,9 @@
 headless = true
 enableCORS = false
 port = 8501
+maxUploadSize = 200
+# Prevent OOM timeout
+maxMessageSize = 200
 
 [theme]
 base="light"
@@ -10,3 +13,10 @@ backgroundColor="#f8fafc"
 secondaryBackgroundColor="#e0e7ef"
 textColor="#262730"
 font="sans serif"
+
+[logger]
+level = "error"
+
+[client]
+# Reduce client-side memory usage
+showErrorDetails = false
